@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2015-2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,31 +35,65 @@
  * @file camera_trigger_params.c
  * Camera trigger parameters
  *
- * @author Mohammed Kabir <mhkabir98@gmail.com>
+ * @author Mohammed Kabir <kabir@uasys.io>
+ * @author Andreas Bircher <andreas@wingtra.com>
+ * @author Lorenz Meier <lorenz@px4.io>
  */
 
-#include <nuttx/config.h>
-#include <systemlib/param/param.h>
+/**
+* Camera trigger Interface
+*
+* Selects the trigger interface
+*
+* @value 1 GPIO
+* @value 2 Seagull MAP2 (over PWM)
+* @value 3 MAVLink (forward via MAV_CMD_IMAGE_START_CAPTURE)
+* @value 4 Generic PWM (IR trigger, servo)
+*
+* @reboot_required true
+* @group Camera trigger
+*/
+PARAM_DEFINE_INT32(TRIG_INTERFACE, 4);
 
 /**
  * Camera trigger interval
  *
  * This parameter sets the time between two consecutive trigger events
  *
- * @unit milliseconds
+ * @unit ms
  * @min 4.0
  * @max 10000.0
+ * @decimal 1
+ * @reboot_required true
  * @group Camera trigger
  */
 PARAM_DEFINE_FLOAT(TRIG_INTERVAL, 40.0f);
 
 /**
+ * Minimum camera trigger interval
+ *
+ * This parameter sets the minimum time between two consecutive trigger events
+ * the specific camera setup is supporting.
+ *
+ * @unit ms
+ * @min 1.0
+ * @max 10000.0
+ * @decimal 1
+ * @reboot_required true
+ * @group Camera trigger
+ */
+PARAM_DEFINE_FLOAT(TRIG_MIN_INTERVA, 1.0f);
+
+/**
  * Camera trigger polarity
  *
- * This parameter sets the polarity of the trigger (0 = ACTIVE_LOW, 1 = ACTIVE_HIGH )
+ * This parameter sets the polarity of the trigger (0 = active low, 1 = active high )
  *
+ * @value 0 Active low
+ * @value 1 Active high
  * @min 0
  * @max 1
+ * @reboot_required true
  * @group Camera trigger
  */
 PARAM_DEFINE_INT32(TRIG_POLARITY, 0);
@@ -69,20 +103,26 @@ PARAM_DEFINE_INT32(TRIG_POLARITY, 0);
  *
  * This parameter sets the time the trigger needs to pulled high or low.
  *
- * @unit milliseconds
+ * @unit ms
+ * @min 0.1
+ * @max 3000
+ * @decimal 1
+ * @reboot_required true
  * @group Camera trigger
  */
-PARAM_DEFINE_FLOAT(TRIG_ACT_TIME, 0.5f);
+PARAM_DEFINE_FLOAT(TRIG_ACT_TIME, 40.0f);
 
 /**
  * Camera trigger mode
  *
- * 0 disables the trigger, 1 sets it to enabled on command, 2 always on
- *
- * @reboot_required true
- *
+ * @value 0 Disable
+ * @value 1 Time based, on command
+ * @value 2 Time based, always on
+ * @value 3 Distance based, always on
+ * @value 4 Distance based, on command (Survey mode)
  * @min 0
- * @max 2
+ * @max 4
+ * @reboot_required true
  * @group Camera trigger
  */
 PARAM_DEFINE_INT32(TRIG_MODE, 0);
@@ -90,10 +130,58 @@ PARAM_DEFINE_INT32(TRIG_MODE, 0);
 /**
  * Camera trigger pin
  *
- * Selects which pin is used, ranges from 1 to 6 (AUX1-AUX6)
+ * Selects which FMU pin is used (range: AUX1-AUX8 on Pixhawk controllers with an I/O board,
+ * MAIN1-MAIN8 on controllers without an I/O board. The PWM interface takes two pins per camera, while relay
+ * triggers on every pin individually. Example: Value 56 would trigger on pins 5 and 6.
+ * For GPIO mode Pin 6 will be triggered followed by 5. With a value of 65 pin 5 will
+ * be triggered followed by 6. Pins may be non contiguous. I.E. 16 or 61.
+ * In GPIO mode the delay pin to pin is < .2 uS.
+ *
+ * Note: only with a value of 56 or 78 it is possible to use the lower pins for
+ * actuator outputs (e.g. ESC's).
  *
  * @min 1
- * @max 123456
+ * @max 12345678
+ * @decimal 0
+ * @reboot_required true
  * @group Camera trigger
  */
-PARAM_DEFINE_INT32(TRIG_PINS, 12);
+PARAM_DEFINE_INT32(TRIG_PINS, 56);
+
+/**
+ * Camera trigger distance
+ *
+ * Sets the distance at which to trigger the camera.
+ *
+ * @unit m
+ * @min 0
+ * @increment 1
+ * @decimal 1
+ * @reboot_required true
+ * @group Camera trigger
+ */
+PARAM_DEFINE_FLOAT(TRIG_DISTANCE, 25.0f);
+
+/**
+ * PWM output to trigger shot.
+ *
+ * @min 1000
+ * @max 2000
+ * @unit us
+ * @group Camera trigger
+ * @reboot_required true
+ */
+PARAM_DEFINE_INT32(TRIG_PWM_SHOOT, 1900);
+
+
+/**
+ * PWM neutral output on trigger pin.
+ *
+ * @min 1000
+ * @max 2000
+ * @unit us
+ * @group Camera trigger
+ * @reboot_required true
+ */
+PARAM_DEFINE_INT32(TRIG_PWM_NEUTRAL, 1500);
+

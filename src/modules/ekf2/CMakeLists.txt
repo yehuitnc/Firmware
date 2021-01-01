@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2015-2020 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -30,19 +30,24 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 #############################################################################
-set(MODULE_CFLAGS)
-if (${OS} STREQUAL "nuttx")
-	list(APPEND MODULE_CFLAGS -Wframe-larger-than=4000)
-endif()
+
+add_subdirectory(Utility)
+
 px4_add_module(
 	MODULE modules__ekf2
 	MAIN ekf2
-	COMPILE_FLAGS ${MODULE_CFLAGS}
-	STACK 1000
+	COMPILE_FLAGS
+		${MAX_CUSTOM_OPT_LEVEL}
 	SRCS
-		ekf2_main.cpp
+		EKF2.cpp
+		EKF2.hpp
+		EKF2Selector.cpp
+		EKF2Selector.hpp
 	DEPENDS
-		platforms__common
 		git_ecl
+		ecl_EKF
+		ecl_geo
+		perf
+		EKF2Utility
+		px4_work_queue
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 

@@ -1,41 +1,71 @@
-#!nsh
+#!/bin/sh
 #
-# Standard apps for multirotors:
-# att & pos estimator, att & pos control.
+# Standard apps for multirotors. Attitude/Position estimator, Attitude/Position control.
+#
+# NOTE: Script variables are declared/initialized/unset in the rcS script.
 #
 
-# The system is defaulting to INAV_ENABLED = 1
-# but users can alternatively try the EKF-based
-# filter by setting INAV_ENABLED = 0
-if param compare INAV_ENABLED 1
+###############################################################################
+#                       Begin Estimator Group Selection                       #
+###############################################################################
+
+#
+# LPE
+#
+if param compare SYS_MC_EST_GROUP 1
 then
-	attitude_estimator_q start
-	position_estimator_inav start
-else
-	if param compare LPE_ENABLED 1
+	#
+	# Try to start LPE. If it fails, start EKF2 as a default.
+	# Unfortunately we do not build it on px4_fmu-v2 due to a limited flash.
+	#
+	if attitude_estimator_q start
 	then
-		attitude_estimator_q start
+		echo "WARN [init] Estimator LPE unsupported, EKF2 recommended."
 		local_position_estimator start
 	else
-		ekf2 start
+		echo "ERROR [init] Estimator LPE not available. Using EKF2"
+		param set SYS_MC_EST_GROUP 2
+		param save
+		reboot
+	fi
+else
+	#
+	# Q estimator (attitude estimation only)
+	#
+	if param compare SYS_MC_EST_GROUP 3
+	then
+		attitude_estimator_q start
+	else
+		#
+		# EKF2
+		#
+		param set SYS_MC_EST_GROUP 2
+		ekf2 start &
 	fi
 fi
 
-if mc_att_control start
-then
-else
-	# try the multiplatform version
-	mc_att_control_m start
-fi
-
-if mc_pos_control start
-then
-else
-	# try the multiplatform version
-	mc_pos_control_m start
-fi
+###############################################################################
+#                        End Estimator Group Selection                        #
+###############################################################################
 
 #
-# Start Land Detector
+# Start Multicopter Rate Controller.
+#
+mc_rate_control start
+
+#
+# Start Multicopter Attitude Controller.
+#
+mc_att_control start
+
+#
+# Start Multicopter Position Controller.
+#
+mc_hover_thrust_estimator start
+flight_mode_manager start
+mc_pos_control start
+
+#
+# Start Multicopter Land Detector.
 #
 land_detector start multicopter

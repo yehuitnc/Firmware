@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2015-2019 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -30,17 +30,19 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
-if (${OS} STREQUAL "nuttx")
-	list(APPEND MODULE_CFLAGS -Wframe-larger-than=3500)
-endif()
+
+add_subdirectory(AttitudeControl)
+
 px4_add_module(
 	MODULE modules__mc_att_control
 	MAIN mc_att_control
-	STACK 1200
-	COMPILE_FLAGS ${MODULE_CFLAGS}
+	COMPILE_FLAGS
+		${MAX_CUSTOM_OPT_LEVEL}
 	SRCS
 		mc_att_control_main.cpp
+		mc_att_control.hpp
 	DEPENDS
-		platforms__common
+		AttitudeControl
+		mathlib
+		px4_work_queue
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 

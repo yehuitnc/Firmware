@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2012-2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2012-2019 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,132 +37,77 @@
  */
 
 #include "Subscription.hpp"
-#include "topics/parameter_update.h"
-#include "topics/actuator_controls.h"
-#include "topics/vehicle_gps_position.h"
-#include "topics/satellite_info.h"
-#include "topics/sensor_combined.h"
-#include "topics/hil_sensor.h"
-#include "topics/vehicle_attitude.h"
-#include "topics/vehicle_global_position.h"
-#include "topics/encoders.h"
-#include "topics/position_setpoint_triplet.h"
-#include "topics/vehicle_status.h"
-#include "topics/manual_control_setpoint.h"
-#include "topics/vehicle_local_position_setpoint.h"
-#include "topics/vehicle_local_position.h"
-#include "topics/vehicle_attitude_setpoint.h"
-#include "topics/vehicle_rates_setpoint.h"
-#include "topics/rc_channels.h"
-#include "topics/battery_status.h"
-#include "topics/optical_flow.h"
-#include "topics/distance_sensor.h"
-#include "topics/home_position.h"
-#include "topics/vehicle_control_mode.h"
-#include "topics/actuator_armed.h"
-#include "topics/att_pos_mocap.h"
-#include "topics/vision_position_estimate.h"
-
-#include <px4_defines.h>
+#include <px4_platform_common/defines.h>
 
 namespace uORB
 {
 
-SubscriptionBase::SubscriptionBase(const struct orb_metadata *meta,
-				   unsigned interval, unsigned instance) :
-	_meta(meta),
-	_instance(instance),
-	_handle()
+bool Subscription::subscribe()
 {
-	if (_instance > 0) {
-		_handle =  orb_subscribe_multi(
-				   getMeta(), instance);
+	// check if already subscribed
+	if (_node != nullptr) {
+		return true;
+	}
+
+	if (_orb_id != ORB_ID::INVALID) {
+
+		DeviceMaster *device_master = uORB::Manager::get_instance()->get_device_master();
+
+		if (device_master != nullptr) {
+
+			if (!device_master->deviceNodeExists(_orb_id, _instance)) {
+				return false;
+			}
+
+			uORB::DeviceNode *node = device_master->getDeviceNode(get_topic(), _instance);
+
+			if (node != nullptr) {
+				_node = node;
+				_node->add_internal_subscriber();
+
+				_last_generation = _node->get_initial_generation();
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void Subscription::unsubscribe()
+{
+	if (_node != nullptr) {
+		_node->remove_internal_subscriber();
+	}
+
+	_node = nullptr;
+	_last_generation = 0;
+}
+
+bool Subscription::ChangeInstance(uint8_t instance)
+{
+	if (instance != _instance) {
+		DeviceMaster *device_master = uORB::Manager::get_instance()->get_device_master();
+
+		if (device_master != nullptr) {
+			if (!device_master->deviceNodeExists(_orb_id, _instance)) {
+				return false;
+			}
+
+			// if desired new instance exists, unsubscribe from current
+			unsubscribe();
+			_instance = instance;
+			subscribe();
+			return true;
+		}
 
 	} else {
-		_handle =  orb_subscribe(getMeta());
+		// already on desired index
+		return true;
 	}
 
-	if (_handle < 0) { warnx("sub failed"); }
-
-	if (interval > 0) {
-		orb_set_interval(getHandle(), interval);
-	}
+	return false;
 }
-
-bool SubscriptionBase::updated()
-{
-	bool isUpdated = false;
-	int ret = orb_check(_handle, &isUpdated);
-
-	if (ret != PX4_OK) { warnx("orb check failed"); }
-
-	return isUpdated;
-}
-
-void SubscriptionBase::update(void *data)
-{
-	if (updated()) {
-		int ret = orb_copy(_meta, _handle, data);
-
-		if (ret != PX4_OK) { warnx("orb copy failed"); }
-	}
-}
-
-SubscriptionBase::~SubscriptionBase()
-{
-	int ret = orb_unsubscribe(_handle);
-
-	if (ret != PX4_OK) { warnx("orb unsubscribe failed"); }
-}
-
-template <class T>
-Subscription<T>::Subscription(const struct orb_metadata *meta,
-			      unsigned interval,
-			      int instance,
-			      List<SubscriptionNode *> *list) :
-	SubscriptionNode(meta, interval, instance, list),
-	_data() // initialize data structure to zero
-{
-}
-
-template <class T>
-Subscription<T>::~Subscription()
-{
-}
-
-template <class T>
-void Subscription<T>::update()
-{
-	SubscriptionBase::update((void *)(&_data));
-}
-
-template <class T>
-const T &Subscription<T>::get() { return _data; }
-
-template class __EXPORT Subscription<parameter_update_s>;
-template class __EXPORT Subscription<actuator_controls_s>;
-template class __EXPORT Subscription<vehicle_gps_position_s>;
-template class __EXPORT Subscription<satellite_info_s>;
-template class __EXPORT Subscription<sensor_combined_s>;
-template class __EXPORT Subscription<hil_sensor_s>;
-template class __EXPORT Subscription<vehicle_attitude_s>;
-template class __EXPORT Subscription<vehicle_global_position_s>;
-template class __EXPORT Subscription<encoders_s>;
-template class __EXPORT Subscription<position_setpoint_triplet_s>;
-template class __EXPORT Subscription<vehicle_status_s>;
-template class __EXPORT Subscription<manual_control_setpoint_s>;
-template class __EXPORT Subscription<vehicle_local_position_setpoint_s>;
-template class __EXPORT Subscription<vehicle_local_position_s>;
-template class __EXPORT Subscription<vehicle_attitude_setpoint_s>;
-template class __EXPORT Subscription<vehicle_rates_setpoint_s>;
-template class __EXPORT Subscription<rc_channels_s>;
-template class __EXPORT Subscription<vehicle_control_mode_s>;
-template class __EXPORT Subscription<actuator_armed_s>;
-template class __EXPORT Subscription<battery_status_s>;
-template class __EXPORT Subscription<home_position_s>;
-template class __EXPORT Subscription<optical_flow_s>;
-template class __EXPORT Subscription<distance_sensor_s>;
-template class __EXPORT Subscription<att_pos_mocap_s>;
-template class __EXPORT Subscription<vision_position_estimate_s>;
 
 } // namespace uORB

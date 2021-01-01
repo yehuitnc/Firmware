@@ -35,10 +35,7 @@ px4_add_module(
 	MAIN pwm_input
 	COMPILE_FLAGS
 		-Wno-pmf-conversions
-		
+		-Wno-cast-align # TODO: fix and enable
 	SRCS
 		pwm_input.cpp
-	DEPENDS
-		platforms__common
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 

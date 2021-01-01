@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2014, 2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2014-2016 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,11 +43,13 @@
 /**
  * Loiter radius (FW only)
  *
- * Default value of loiter radius for missions, loiter, RTL, etc. (fixedwing only).
+ * Default value of loiter radius for missions, Hold mode, Return mode, etc. (fixedwing only).
  *
- * @unit meter
+ * @unit m
  * @min 25
  * @max 1000
+ * @decimal 1
+ * @increment 0.5
  * @group Mission
  */
 PARAM_DEFINE_FLOAT(NAV_LOITER_RAD, 50.0f);
@@ -56,42 +58,108 @@ PARAM_DEFINE_FLOAT(NAV_LOITER_RAD, 50.0f);
  * Acceptance Radius
  *
  * Default acceptance radius, overridden by acceptance radius of waypoint if set.
+ * For fixed wing the L1 turning distance is used for horizontal acceptance.
  *
- * @unit meter
+ * @unit m
  * @min 0.05
  * @max 200.0
+ * @decimal 1
+ * @increment 0.5
  * @group Mission
  */
 PARAM_DEFINE_FLOAT(NAV_ACC_RAD, 10.0f);
 
 /**
- * Set OBC mode for data link loss
+ * FW Altitude Acceptance Radius
  *
- * If set to 1 the behaviour on data link loss is set to a mode according to the OBC rules
+ * Acceptance radius for fixedwing altitude.
  *
- * @min 0
- * @max 1
+ * @unit m
+ * @min 0.05
+ * @max 200.0
+ * @decimal 1
+ * @increment 0.5
  * @group Mission
  */
-PARAM_DEFINE_INT32(NAV_DLL_OBC, 0);
+PARAM_DEFINE_FLOAT(NAV_FW_ALT_RAD, 10.0f);
 
 /**
- * Set OBC mode for rc loss
+ * FW Altitude Acceptance Radius before a landing
  *
- * If set to 1 the behaviour on data link loss is set to a mode according to the OBC rules
+ * Altitude acceptance used for the last waypoint before a fixed-wing landing. This is usually smaller
+ * than the standard vertical acceptance because close to the ground higher accuracy is required.
  *
- * @min 0
- * @max 1
+ * @unit m
+ * @min 0.05
+ * @max 200.0
+ * @decimal 1
  * @group Mission
  */
-PARAM_DEFINE_INT32(NAV_RCL_OBC, 0);
+PARAM_DEFINE_FLOAT(NAV_FW_ALTL_RAD, 5.0f);
+
+/**
+ * MC Altitude Acceptance Radius
+ *
+ * Acceptance radius for multicopter altitude.
+ *
+ * @unit m
+ * @min 0.05
+ * @max 200.0
+ * @decimal 1
+ * @increment 0.5
+ * @group Mission
+ */
+PARAM_DEFINE_FLOAT(NAV_MC_ALT_RAD, 0.8f);
+
+/**
+ * Set traffic avoidance mode
+ *
+ * Enabling this will allow the system to respond
+ * to transponder data from e.g. ADSB transponders
+ *
+ * @value 0 Disabled
+ * @value 1 Warn only
+ * @value 2 Return mode
+ * @value 3 Land mode
+ * @value 4 Position Hold mode
+ *
+ * @group Mission
+ */
+PARAM_DEFINE_INT32(NAV_TRAFF_AVOID, 1);
+
+/**
+ * Set NAV TRAFFIC AVOID RADIUS MANNED
+ *
+ * Defines the Radius where NAV TRAFFIC AVOID is Called
+ * For Manned Aviation
+ *
+ * @unit m
+ * @min 500
+ *
+ * @group Mission
+ */
+PARAM_DEFINE_FLOAT(NAV_TRAFF_A_RADM, 500);
+
+/**
+ * Set NAV TRAFFIC AVOID RADIUS
+ *
+ * Defines the Radius where NAV TRAFFIC AVOID is Called
+ * For Unmanned Aviation
+ *
+ * @unit m
+ * @min 10
+ * @max 500
+ *
+ * @group Mission
+ */
+PARAM_DEFINE_FLOAT(NAV_TRAFF_A_RADU, 10);
 
 /**
  * Airfield home Lat
  *
  * Latitude of airfield home waypoint
  *
- * @unit degrees * 1e7
+ * @unit deg*1e7
  * @min -900000000
  * @max 900000000
  * @group Data Link Loss
@@ -103,7 +171,7 @@ PARAM_DEFINE_INT32(NAV_AH_LAT, -265847810);
  *
  * Longitude of airfield home waypoint
  *
- * @unit degrees * 1e7
+ * @unit deg*1e7
  * @min -1800000000
  * @max 1800000000
  * @group Data Link Loss
@@ -117,6 +185,16 @@ PARAM_DEFINE_INT32(NAV_AH_LON, 1518423250);
  *
  * @unit m
  * @min -50
+ * @decimal 1
+ * @increment 0.5
  * @group Data Link Loss
  */
 PARAM_DEFINE_FLOAT(NAV_AH_ALT, 600.0f);
+
+/**
+ * Force VTOL mode takeoff and land
+ *
+ * @boolean
+ * @group Mission
+ */
+PARAM_DEFINE_INT32(NAV_FORCE_VT, 1);

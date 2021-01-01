@@ -40,12 +40,13 @@
  * @author Marco Bauer <marco@wtns.de>
  */
 
-#include <px4_config.h>
-#include <systemlib/param/param.h>
+#include <px4_platform_common/px4_config.h>
+#include <parameters/param.h>
 
 /**
- * Enables testmode (Identify) of MKBLCTRL Driver
+ * Test mode (Identify) of MKBLCTRL Driver
  *
+ * @boolean
  * @group MKBLCTRL Testmode
  */
 PARAM_DEFINE_INT32(MKBLCTRL_TEST, 0);

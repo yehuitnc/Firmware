@@ -1,6 +1,6 @@
 ############################################################################
 #
-#   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+#   Copyright (c) 2015-2019 PX4 Development Team. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -30,17 +30,35 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
+
+add_subdirectory(data_validator)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+add_subdirectory(vehicle_acceleration)
+add_subdirectory(vehicle_angular_velocity)
+add_subdirectory(vehicle_air_data)
+add_subdirectory(vehicle_gps_position)
+add_subdirectory(vehicle_imu)
+add_subdirectory(vehicle_magnetometer)
+
 px4_add_module(
 	MODULE modules__sensors
 	MAIN sensors
-	PRIORITY "SCHED_PRIORITY_MAX-5"
-	STACK 1200
-	COMPILE_FLAGS
-		-Wno-type-limits
-		-O3
 	SRCS
+		voted_sensors_update.cpp
 		sensors.cpp
 	DEPENDS
-		platforms__common
+		airspeed
+		conversion
+		data_validator
+		drivers__device
+		git_ecl
+		mathlib
+		sensor_calibration
+		vehicle_acceleration
+		vehicle_angular_velocity
+		vehicle_air_data
+		vehicle_gps_position
+		vehicle_imu
+		vehicle_magnetometer
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 

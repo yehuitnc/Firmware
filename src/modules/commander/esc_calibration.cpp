@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2015 PX4 Development Team. All rights reserved.
+ *   Copyright (c) 2015-2017 PX4 Development Team. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,151 +36,142 @@
  *
  * Definition of esc calibration
  *
- * @author Roman Bapst <bapstr@ethz.ch>
+ * @author Roman Bapst <roman@px4.io>
  */
 
 #include "esc_calibration.h"
 #include "calibration_messages.h"
+#include "calibration_routines.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <systemlib/err.h>
-#include <fcntl.h>
-#include <px4_posix.h>
-#include <px4_time.h>
-#include "drivers/drv_pwm_output.h"
-#include <uORB/topics/battery_status.h>
-#include <uORB/topics/vehicle_command.h>
-#include <uORB/uORB.h>
 #include <drivers/drv_hrt.h>
-#include <mavlink/mavlink_log.h>
+#include <drivers/drv_pwm_output.h>
+#include <px4_platform_common/defines.h>
+#include <px4_platform_common/posix.h>
+#include <px4_platform_common/time.h>
+#include <systemlib/mavlink_log.h>
+#include <uORB/Subscription.hpp>
+#include <uORB/topics/battery_status.h>
 
-/* oddly, ERROR is not defined for c++ */
-#ifdef ERROR
-# undef ERROR
-#endif
-static const int ERROR = -1;
+using namespace time_literals;
 
-int do_esc_calibration(int mavlink_fd, struct actuator_armed_s* armed)
+bool check_battery_disconnected(orb_advert_t *mavlink_log_pub)
 {
-	int	return_code = OK;
-	
-	int	fd = -1;
-	
-	struct	battery_status_s battery;
-	int	batt_sub = -1;
-	bool	batt_updated = false;
-	bool	batt_connected = false;
-	
-	hrt_abstime battery_connect_wait_timeout = 20000000;
-	hrt_abstime pwm_high_timeout = 5000000;
-	hrt_abstime timeout_start;
-	
-	mavlink_and_console_log_info(mavlink_fd, CAL_QGC_STARTED_MSG, "esc");
-	
-	batt_sub = orb_subscribe(ORB_ID(battery_status));
-	if (batt_sub < 0) {
-		mavlink_and_console_log_critical(mavlink_fd, CAL_QGC_FAILED_MSG, "Subscribe to battery");
-		goto Error;
+	uORB::SubscriptionData<battery_status_s> batt_sub{ORB_ID(battery_status)};
+	const battery_status_s &battery = batt_sub.get();
+	batt_sub.update();
+
+	if (battery.timestamp == 0) {
+		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "battery unavailable");
+		return false;
 	}
 
 	// Make sure battery is disconnected
-	orb_copy(ORB_ID(battery_status), batt_sub, &battery);
-	if (battery.voltage_filtered_v > 3.0f) {
-		mavlink_and_console_log_critical(mavlink_fd, CAL_QGC_FAILED_MSG, "Disconnect battery and try again");
-		goto Error;
+	// battery is not connected if the connected flag is not set and we have a recent battery measurement
+	if (!battery.connected && (hrt_elapsed_time(&battery.timestamp) < 500_ms)) {
+		return true;
 	}
-	
-	armed->in_esc_calibration_mode = true;
-	
-	fd = px4_open(PWM_OUTPUT0_DEVICE_PATH, 0);
+
+	calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Disconnect battery and try again");
+	return false;
+}
+
+int do_esc_calibration(orb_advert_t *mavlink_log_pub)
+{
+	int	return_code = PX4_OK;
+	hrt_abstime timeout_start = 0;
+	calibration_log_info(mavlink_log_pub, CAL_QGC_STARTED_MSG, "esc");
+
+	uORB::SubscriptionData<battery_status_s> batt_sub{ORB_ID(battery_status)};
+	const battery_status_s &battery = batt_sub.get();
+	batt_sub.update();
+	bool batt_connected = battery.connected;
+
+	int fd = px4_open(PWM_OUTPUT0_DEVICE_PATH, 0);
 
 	if (fd < 0) {
-		mavlink_and_console_log_critical(mavlink_fd, CAL_QGC_FAILED_MSG, "Can't open PWM device");
-		goto Error;
+		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Can't open PWM device");
+		return_code = PX4_ERROR;
+		goto Out;
 	}
 
 	/* tell IO/FMU that its ok to disable its safety with the switch */
-	if (px4_ioctl(fd, PWM_SERVO_SET_ARM_OK, 0) != OK) {
-		mavlink_and_console_log_critical(mavlink_fd, CAL_QGC_FAILED_MSG, "Unable to disable safety switch");
-		goto Error;
-	}
-	
-	/* tell IO/FMU that the system is armed (it will output values if safety is off) */
-	if (px4_ioctl(fd, PWM_SERVO_ARM, 0) != OK) {
-		mavlink_and_console_log_critical(mavlink_fd, CAL_QGC_FAILED_MSG, "Unable to arm system");
-		goto Error;
-	}
-	
-	/* tell IO to switch off safety without using the safety switch */
-	if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_OFF, 0) != OK) {
-		mavlink_and_console_log_critical(mavlink_fd, CAL_QGC_FAILED_MSG, "Unable to force safety off");
-		goto Error;
+	if (px4_ioctl(fd, PWM_SERVO_SET_ARM_OK, 0) != PX4_OK) {
+		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Unable to disable safety switch");
+		return_code = PX4_ERROR;
+		goto Out;
 	}
 
-	mavlink_and_console_log_info(mavlink_fd, "[cal] Connect battery now");
-	
+	/* tell IO/FMU that the system is armed (it will output values if safety is off) */
+	if (px4_ioctl(fd, PWM_SERVO_ARM, 0) != PX4_OK) {
+		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Unable to arm system");
+		return_code = PX4_ERROR;
+		goto Out;
+	}
+
+	/* tell IO to switch off safety without using the safety switch */
+	if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_OFF, 0) != PX4_OK) {
+		calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Unable to force safety off");
+		return_code = PX4_ERROR;
+		goto Out;
+	}
+
+	calibration_log_info(mavlink_log_pub, "[cal] Connect battery now");
+
 	timeout_start = hrt_absolute_time();
 
 	while (true) {
 		// We are either waiting for the user to connect the battery. Or we are waiting to let the PWM
 		// sit high.
+		static constexpr hrt_abstime battery_connect_wait_timeout{20_s};
+		static constexpr hrt_abstime pwm_high_timeout{3_s};
 		hrt_abstime timeout_wait = batt_connected ? pwm_high_timeout : battery_connect_wait_timeout;
-        
-		if (hrt_absolute_time() - timeout_start > timeout_wait) {
+
+		if (hrt_elapsed_time(&timeout_start) > timeout_wait) {
 			if (!batt_connected) {
-				mavlink_and_console_log_critical(mavlink_fd, CAL_QGC_FAILED_MSG, "Timeout waiting for battery");
-				goto Error;
+				calibration_log_critical(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Timeout waiting for battery");
+				return_code = PX4_ERROR;
+				goto Out;
 			}
-			
+
 			// PWM was high long enough
 			break;
 		}
-		
+
 		if (!batt_connected) {
-			orb_check(batt_sub, &batt_updated);
-			if (batt_updated) {
-				orb_copy(ORB_ID(battery_status), batt_sub, &battery);
-				if (battery.voltage_filtered_v > 3.0f) {
+			if (batt_sub.update()) {
+				if (battery.connected) {
 					// Battery is connected, signal to user and start waiting again
 					batt_connected = true;
 					timeout_start = hrt_absolute_time();
-					mavlink_and_console_log_info(mavlink_fd, "[cal] Battery connected");
+					calibration_log_info(mavlink_log_pub, "[cal] Battery connected");
 				}
 			}
 		}
-		usleep(50000);
+
+		px4_usleep(50000);
 	}
 
 Out:
-	if (batt_sub != -1) {
-		orb_unsubscribe(batt_sub);
-	}
+
 	if (fd != -1) {
-		if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_ON, 0) != OK) {
-			mavlink_and_console_log_info(mavlink_fd, CAL_QGC_WARNING_MSG, "Safety switch still off");
+		if (px4_ioctl(fd, PWM_SERVO_SET_FORCE_SAFETY_ON, 0) != PX4_OK) {
+			calibration_log_info(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Safety switch still off");
 		}
-		if (px4_ioctl(fd, PWM_SERVO_DISARM, 0) != OK) {
-			mavlink_and_console_log_info(mavlink_fd, CAL_QGC_WARNING_MSG, "Servos still armed");
+
+		if (px4_ioctl(fd, PWM_SERVO_DISARM, 0) != PX4_OK) {
+			calibration_log_info(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Servos still armed");
 		}
-		if (px4_ioctl(fd, PWM_SERVO_CLEAR_ARM_OK, 0) != OK) {
-			mavlink_and_console_log_info(mavlink_fd, CAL_QGC_WARNING_MSG, "Safety switch still deactivated");
+
+		if (px4_ioctl(fd, PWM_SERVO_CLEAR_ARM_OK, 0) != PX4_OK) {
+			calibration_log_info(mavlink_log_pub, CAL_QGC_FAILED_MSG, "Safety switch still deactivated");
 		}
+
 		px4_close(fd);
 	}
-	armed->in_esc_calibration_mode = false;
-	
-	if (return_code == OK) {
-		mavlink_and_console_log_info(mavlink_fd, CAL_QGC_DONE_MSG, "esc");
+
+	if (return_code == PX4_OK) {
+		calibration_log_info(mavlink_log_pub, CAL_QGC_DONE_MSG, "esc");
 	}
-	
+
 	return return_code;
-	
-Error:
-	return_code = ERROR;
-	goto Out;
 }

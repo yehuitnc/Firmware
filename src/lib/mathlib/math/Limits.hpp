@@ -39,50 +39,70 @@
 
 #pragma once
 
-#include <platforms/px4_defines.h>
+#include <float.h>
+#include <math.h>
 #include <stdint.h>
+
+#ifndef MATH_PI
+#define MATH_PI		3.141592653589793238462643383280
+#endif
 
 namespace math
 {
 
+template<typename _Tp>
+constexpr _Tp min(_Tp a, _Tp b)
+{
+	return (a < b) ? a : b;
+}
 
-float __EXPORT min(float val1, float val2);
+template<typename _Tp>
+constexpr _Tp max(_Tp a, _Tp b)
+{
+	return (a > b) ? a : b;
+}
 
-int __EXPORT min(int val1, int val2);
+template<typename _Tp>
+constexpr _Tp constrain(_Tp val, _Tp min_val, _Tp max_val)
+{
+	return (val < min_val) ? min_val : ((val > max_val) ? max_val : val);
+}
 
-unsigned __EXPORT min(unsigned val1, unsigned val2);
+/** Constrain float values to valid values for int16_t.
+ * Invalid values are just clipped to be in the range for int16_t. */
+constexpr int16_t constrainFloatToInt16(float value)
+{
+	return (int16_t)math::constrain(value, (float)INT16_MIN, (float)INT16_MAX);
+}
 
-uint64_t __EXPORT min(uint64_t val1, uint64_t val2);
+template<typename _Tp>
+constexpr bool isInRange(_Tp val, _Tp min_val, _Tp max_val)
+{
+	return (min_val <= val) && (val <= max_val);
+}
 
-double __EXPORT min(double val1, double val2);
+template<typename T>
+constexpr T radians(T degrees)
+{
+	return degrees * (static_cast<T>(MATH_PI) / static_cast<T>(180));
+}
 
-float __EXPORT max(float val1, float val2);
+template<typename T>
+constexpr T degrees(T radians)
+{
+	return radians * (static_cast<T>(180) / static_cast<T>(MATH_PI));
+}
 
-int __EXPORT max(int val1, int val2);
+/** Safe way to check if float is zero */
+inline bool isZero(float val)
+{
+	return fabsf(val - 0.0f) < FLT_EPSILON;
+}
 
-unsigned __EXPORT max(unsigned val1, unsigned val2);
-
-uint64_t __EXPORT max(uint64_t val1, uint64_t val2);
-
-double __EXPORT max(double val1, double val2);
-
-
-float __EXPORT constrain(float val, float min, float max);
-
-int __EXPORT constrain(int val, int min, int max);
-
-unsigned __EXPORT constrain(unsigned val, unsigned min, unsigned max);
-
-uint64_t __EXPORT constrain(uint64_t val, uint64_t min, uint64_t max);
-
-double __EXPORT constrain(double val, double min, double max);
-
-float __EXPORT radians(float degrees);
-
-double __EXPORT radians(double degrees);
-
-float __EXPORT degrees(float radians);
-
-double __EXPORT degrees(double radians);
+/** Safe way to check if double is zero */
+inline bool isZero(double val)
+{
+	return fabs(val - 0.0) < DBL_EPSILON;
+}
 
 }

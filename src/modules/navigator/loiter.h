@@ -38,30 +38,34 @@
  * @author Julian Oes <julian@oes.ch>
  */
 
-#ifndef NAVIGATOR_LOITER_H
-#define NAVIGATOR_LOITER_H
-
-#include <controllib/blocks.hpp>
-#include <controllib/block/BlockParam.hpp>
+#pragma once
 
 #include "navigator_mode.h"
 #include "mission_block.h"
 
-class Loiter : public MissionBlock
+#include <px4_platform_common/module_params.h>
+
+class Loiter : public MissionBlock, public ModuleParams
 {
 public:
-	Loiter(Navigator *navigator, const char *name);
+	Loiter(Navigator *navigator);
+	~Loiter() = default;
 
-	~Loiter();
-
-	virtual void on_inactive();
-
-	virtual void on_activation();
-
-	virtual void on_active();
+	void on_inactive() override;
+	void on_activation() override;
+	void on_active() override;
 
 private:
-	control::BlockParamFloat _param_min_alt;
-};
+	/**
+	 * Use the stored reposition location of the navigator
+	 * to move to a new location.
+	 */
+	void reposition();
 
-#endif
+	/**
+	 * Set the position to hold based on the current local position
+	 */
+	void set_loiter_position();
+
+	bool _loiter_pos_set{false};
+};

@@ -1,4 +1,7 @@
+uint64 timestamp	# time since system start (microseconds)
+uint64 timestamp_utc # UTC timestamp
 
-uint64 timestamp	# Timestamp when camera was triggered
-uint32 seq		# Image sequence
+uint32 seq		# Image sequence number
+bool feedback	# Trigger feedback from camera
 
+# TOPICS camera_trigger camera_trigger_secondary

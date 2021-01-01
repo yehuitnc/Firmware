@@ -30,31 +30,40 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 ############################################################################
-set(MODULE_CFLAGS -Os)
-if(${OS} STREQUAL "nuttx")
-	list(APPEND MODULE_CFLAGS -Wframe-larger-than=2450)
-endif()
+
+add_subdirectory(failure_detector)
+add_subdirectory(Arming)
+
 px4_add_module(
 	MODULE modules__commander
 	MAIN commander
-	STACK 4096
 	COMPILE_FLAGS
-		${MODULE_CFLAGS}
-		-Os
 	SRCS
-		commander.cpp
-		state_machine_helper.cpp
-		commander_helper.cpp
-		calibration_routines.cpp
 		accelerometer_calibration.cpp
-		gyro_calibration.cpp
-		mag_calibration.cpp
-		baro_calibration.cpp
-		rc_calibration.cpp
 		airspeed_calibration.cpp
+		calibration_routines.cpp
+		Commander.cpp
+		commander_helper.cpp
 		esc_calibration.cpp
-		PreflightCheck.cpp
+		factory_calibration_storage.cpp
+		gyro_calibration.cpp
+		level_calibration.cpp
+		mag_calibration.cpp
+		rc_calibration.cpp
+		state_machine_helper.cpp
+		worker_thread.cpp
 	DEPENDS
-		platforms__common
+		circuit_breaker
+		failure_detector
+		git_ecl
+		ecl_geo
+		hysteresis
+		PreFlightCheck
+		ArmAuthorization
+		HealthFlags
+		sensor_calibration
 	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
+
+if(PX4_TESTING)
+	add_subdirectory(commander_tests)
+endif()

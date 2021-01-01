@@ -31,53 +31,44 @@
 #
 ############################################################################
 
-# this includes the generated topics directory
-include_directories(
-	${CMAKE_CURRENT_BINARY_DIR}
-	)
+if(NOT PX4_BOARD MATCHES "px4_io") # TODO: fix this hack (move uORB to platform layer)
 
-set(SRCS
-	objects_common.cpp
-	uORBUtils.cpp
-	uORB.cpp
-	uORBMain.cpp
-	Publication.cpp
-	Subscription.cpp
-	)
+	# this includes the generated topics directory
+	include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-if(${OS} STREQUAL "nuttx")
-	list(APPEND SRCS
-		uORBDevices_nuttx.cpp
-		uORBTest_UnitTest.cpp
-		uORBManager_nuttx.cpp
+	px4_add_module(
+		MODULE modules__uORB
+		MAIN uorb
+		COMPILE_FLAGS
+			${MAX_CUSTOM_OPT_LEVEL}
+		SRCS
+			ORBSet.hpp
+			Publication.hpp
+			PublicationMulti.hpp
+			Subscription.cpp
+			Subscription.hpp
+			SubscriptionCallback.hpp
+			SubscriptionInterval.hpp
+			SubscriptionMultiArray.hpp
+			uORB.cpp
+			uORB.h
+			uORBCommon.hpp
+			uORBCommunicator.hpp
+			uORBDeviceMaster.cpp
+			uORBDeviceMaster.hpp
+			uORBDeviceNode.cpp
+			uORBDeviceNode.hpp
+			uORBMain.cpp
+			uORBManager.cpp
+			uORBManager.hpp
+			uORBUtils.cpp
+			uORBUtils.hpp
+		DEPENDS
+			cdev
+			uorb_msgs
 		)
-elseif(${OS} STREQUAL "posix")
-	list(APPEND SRCS
-		uORBDevices_posix.cpp
-		uORBManager_posix.cpp
-		uORBTest_UnitTest.cpp
-		)
-elseif(${OS} STREQUAL "posix-arm")
-	list(APPEND SRCS
-		uORBDevices_posix.cpp
-		uORBManager_posix.cpp
-		uORBTest_UnitTest.cpp
-		)
-elseif(${OS} STREQUAL "qurt")
-	list(APPEND SRCS
-		uORBDevices_posix.cpp
-		uORBManager_posix.cpp
-		)
+
+	if(PX4_TESTING)
+		add_subdirectory(uORB_tests)
+	endif()
 endif()
-
-px4_add_module(
-	MODULE modules__uORB
-	MAIN uorb
-	STACK 2048
-	COMPILE_FLAGS
-		-Os
-	SRCS ${SRCS}
-	DEPENDS
-		platforms__common
-	)
-# vim: set noet ft=cmake fenc=utf-8 ff=unix : 
